@@ -1,0 +1,362 @@
+#include <stdio.h>
+#include <stdbool.h>
+#include <math.h>
+#include <graphics.h>
+
+#define WINDOW_WIDTH  1000
+#define WINDOW_HEIGHT 800
+#define PI            3.14159265358979323846
+#define NODE_RADIUS   20
+#define MAX_NODES     50
+
+// Mau sac Console
+#define ANSI_RESET   "\x1b[0m"
+#define ANSI_RED     "\033[31m"
+#define ANSI_GREEN   "\033[32m"
+#define ANSI_YELLOW  "\033[33m"
+#define ANSI_CYAN    "\033[36m"
+#define ANSI_MAGENTA "\033[35m" 
+
+// ================= Cau truc du lieu =================
+typedef struct {
+    int a[MAX_NODES + 1][MAX_NODES + 1]; 
+    bool v[MAX_NODES + 1];               
+    int n;                               
+    int s;                              
+    int x[MAX_NODES + 1];                
+    int y[MAX_NODES + 1];                
+} Graph;
+
+typedef struct {
+    int data[MAX_NODES + 1];
+    int front;
+    int rear;
+} Queue;
+
+// ================= Ham xu ly Queue ==============================
+void init_queue(Queue *q) {
+    q->front = 0;
+    q->rear  = -1;
+}
+
+bool is_empty(Queue *q) {
+    return q->front > q->rear;
+}
+
+void push(Queue *q, int val) {
+    q->data[++q->rear] = val;
+}
+
+int pop(Queue *q) {
+    if (is_empty(q)) return -1;
+    return q->data[q->front++];
+}
+
+// ================= Cac Ham Xoa Bo Dem & Khoi tao =================
+void xoa_bo_dem() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF); 
+}
+
+void khoi_tao_do_thi(Graph *g) {
+    for(int i = 0; i <= MAX_NODES; i++) {
+        g->v[i] = false;
+        for(int j = 0; j <= MAX_NODES; j++) {
+            g->a[i][j] = 0;
+        }
+    }
+}
+
+// ================= Cac Ham Nhap du lieu an toan =================
+bool nhap_tu_file(Graph *g) {
+    int chon_file;
+    char ten_file[20];
+
+    printf("\n");
+    printf(ANSI_CYAN "==== DANH SACH FILE TEST ====\n" ANSI_RESET);
+    for (int i = 1; i <= 10; i++) {
+        printf(" %d. test%d.txt\n", i, i);
+    }
+    printf(ANSI_YELLOW "Chon file ban muon chay (1-10): " ANSI_RESET);
+
+    if (scanf("%d", &chon_file) != 1 || chon_file < 1 || chon_file > 10) {
+        printf(ANSI_RED "Loi: Lua chon khong hop le! Vui long nhap tu 1 den 10.\n" ANSI_RESET);
+        xoa_bo_dem(); 
+        return false;
+    }
+
+    sprintf(ten_file, "C:\\Users\\Quan\\Documents\\PBL1_final\\test%d.txt", chon_file);
+
+    FILE *file = fopen(ten_file, "r");
+    if (file == NULL) {
+        printf(ANSI_RED "Loi: Khong tim thay file '%s'. Vui long tao file!\n" ANSI_RESET, ten_file);
+        return false;
+    }
+    
+    if (fscanf(file, "%d", &g->n) != 1 || g->n < 1 || g->n > MAX_NODES) {
+        printf(ANSI_RED "Loi: So dinh trong file %s khong hop le (phai tu 1 - %d).\n" ANSI_RESET, ten_file, MAX_NODES);
+        fclose(file); 
+        return false;
+    }
+    
+    khoi_tao_do_thi(g);
+
+    for (int i = 1; i <= g->n; i++) {
+        for (int j = 1; j <= g->n; j++) {
+            if (fscanf(file, "%d", &g->a[i][j]) != 1) {
+                printf(ANSI_RED "Loi: Du lieu ma tran trong file %s bi thieu hoac khong phai so.\n" ANSI_RESET, ten_file);
+                fclose(file);
+                return false;
+            }
+            if (g->a[i][j] != 0 && g->a[i][j] != 1) {
+                printf(ANSI_RED "Loi: Ma tran ke chi duoc chua so 0 hoac 1.\n" ANSI_RESET);
+                fclose(file);
+                return false;
+            }
+        }
+    }
+    
+    // --- KIEM TRA DO THI VO HUONG ---
+    for (int i = 1; i <= g->n; i++) {
+        for (int j = 1; j <= g->n; j++) {
+            if (g->a[i][j] != g->a[j][i]) {
+                printf(ANSI_RED "Loi: Ma tran trong file %s khong doi xung! (a[%d][%d] khac a[%d][%d]).\n" ANSI_RESET, ten_file, i, j, j, i);
+                printf(ANSI_RED "=> Day la do thi co huong. Vui long sua lai file txt thanh vo huong!\n" ANSI_RESET);
+                fclose(file);
+                return false;
+            }
+        }
+    }
+    
+    if (fscanf(file, "%d", &g->s) != 1 || g->s < 1 || g->s > g->n) {
+        printf(ANSI_YELLOW "Canh bao: Dinh bat dau sai. Tu dong chon dinh 1.\n" ANSI_RESET);
+        g->s = 1;
+    }
+    
+    fclose(file);
+    printf(ANSI_GREEN "Da tai thanh cong du lieu tu %s!\n" ANSI_RESET, ten_file);
+    return true;
+}
+
+bool nhap_tu_ban_phim(Graph *g) {
+    while (true) {
+        printf("Nhap so luong dinh (1 <= n <= %d): ", MAX_NODES);
+        if (scanf("%d", &g->n) == 1 && g->n >= 1 && g->n <= MAX_NODES) {
+            xoa_bo_dem(); 
+            break; 
+        }
+        printf(ANSI_RED "Loi: So dinh phai la so nguyen tu 1 den %d!\n" ANSI_RESET, MAX_NODES);
+        xoa_bo_dem(); 
+    }
+
+    khoi_tao_do_thi(g);
+
+    // --- CHECK DO THI VO HUONG & BAT NHAP LAI ---
+    bool doi_xung = false;
+    while (!doi_xung) {
+        printf("Nhap ma tran ke (%d x %d), chi nhap 0 hoac 1:\n", g->n, g->n);
+        for (int i = 1; i <= g->n; i++) {
+            for (int j = 1; j <= g->n; j++) {
+                while (true) {
+                    printf("a[%d][%d] = ", i, j);
+                    if (scanf("%d", &g->a[i][j]) == 1 && (g->a[i][j] == 0 || g->a[i][j] == 1)) {
+                        xoa_bo_dem(); 
+                        break;
+                    }
+                    printf(ANSI_RED "Loi: Chi duoc nhap so 0 hoac 1!\n" ANSI_RESET);
+                    xoa_bo_dem();
+                }
+            }
+        }
+
+        doi_xung = true; 
+        for (int i = 1; i <= g->n; i++) {
+            for (int j = 1; j <= g->n; j++) {
+                if (g->a[i][j] != g->a[j][i]) {
+                    doi_xung = false;
+                    break;
+                }
+            }
+            if (!doi_xung) break;
+        }
+
+        if (!doi_xung) {
+            printf(ANSI_RED "\nLoi: Ma tran vua nhap bi loi!\n" ANSI_RESET);
+            printf(ANSI_RED "=> Day khong phai do thi vo huong, vui long nhap lai toan bo!\n\n" ANSI_RESET);
+        }
+    }
+
+    while (true) {
+        printf("Nhap dinh bat dau BFS (tu 1 den %d): ", g->n);
+        if (scanf("%d", &g->s) == 1 && g->s >= 1 && g->s <= g->n) {
+            xoa_bo_dem(); 
+            break;
+        }
+        printf(ANSI_RED "Loi: Dinh khong ton tai hoac sai dinh dang!\n" ANSI_RESET);
+        xoa_bo_dem();
+    }
+
+    return true;
+}
+
+// ================= Do hoa & Thuat toan =================
+void VeDoThiGoc(Graph *g) {
+    int tam_X = WINDOW_WIDTH / 2;
+    int tam_Y = WINDOW_HEIGHT / 2;
+    int ban_kinh = (WINDOW_HEIGHT / 2) - 80; 
+
+    for (int i = 1; i <= g->n; i++) {
+        double goc = (2 * PI * i / g->n) - (PI / 2);
+        g->x[i] = tam_X + ban_kinh * cos(goc);
+        g->y[i] = tam_Y + ban_kinh * sin(goc);
+    }
+
+    setlinestyle(SOLID_LINE, 0, 1); 
+    setcolor(RED);                  
+    for (int i = 1; i <= g->n; i++) {
+        for (int j = 1; j <= g->n; j++) { 
+            if (g->a[i][j] == 1) {
+                line(g->x[i], g->y[i], g->x[j], g->y[j]);
+            }
+        }
+    }
+
+    settextstyle(DEFAULT_FONT, HORIZ_DIR, 2);
+
+    for (int i = 1; i <= g->n; i++) {
+        setcolor(WHITE);                      
+        setfillstyle(SOLID_FILL, DARKGRAY);   
+        fillellipse(g->x[i], g->y[i], NODE_RADIUS, NODE_RADIUS); 
+
+        if (g->n <= 30) {
+            char chu_so[10];
+            sprintf(chu_so, "%d", i);
+            
+            setbkcolor(DARKGRAY);
+            setcolor(WHITE); 
+            
+            int tw = textwidth(chu_so);
+            int th = textheight(chu_so);
+            outtextxy(g->x[i] - tw / 2, g->y[i] - th / 2, chu_so);
+            
+            setbkcolor(BLACK); 
+        }
+    }
+}
+
+void BFS(Graph *g) {
+    FILE *fout = fopen("output.txt", "w");
+    if (!fout) {
+        printf(ANSI_RED "Loi: Khong the tao file 'output.txt'.\n" ANSI_RESET);
+        return;
+    }
+
+    Queue q;
+    init_queue(&q);
+    
+    push(&q, g->s);
+    g->v[g->s] = true;
+
+    setcolor(YELLOW);
+    setfillstyle(SOLID_FILL, YELLOW);
+    fillellipse(g->x[g->s], g->y[g->s], NODE_RADIUS, NODE_RADIUS);
+
+    settextstyle(DEFAULT_FONT, HORIZ_DIR, 2);
+
+    char chu_so[10];
+    sprintf(chu_so, "%d", g->s);
+    
+    setbkcolor(YELLOW); 
+    setcolor(BLACK);    
+    outtextxy(g->x[g->s] - textwidth(chu_so)/2, g->y[g->s] - textheight(chu_so)/2, chu_so);
+    setbkcolor(BLACK);  
+
+    delay(300); 
+
+    while (!is_empty(&q)) {
+        int u = pop(&q);
+        for (int i = 1; i <= g->n; i++) {
+            if (g->a[u][i] == 1 && !g->v[i]) {
+                g->v[i] = true;
+                fprintf(fout, "%d va %d\n", u, i);
+                printf("%d va %d\n", u, i);
+
+                setlinestyle(SOLID_LINE, 0, 3); 
+                setcolor(LIGHTBLUE); 
+                line(g->x[u], g->y[u], g->x[i], g->y[i]); 
+                setlinestyle(SOLID_LINE, 0, 1); 
+
+                setcolor(GREEN); 
+                setfillstyle(SOLID_FILL, GREEN); 
+                fillellipse(g->x[i], g->y[i], NODE_RADIUS, NODE_RADIUS);
+
+                sprintf(chu_so, "%d", i);
+    
+                setbkcolor(GREEN); 
+                setcolor(WHITE);   
+                outtextxy(g->x[i] - textwidth(chu_so)/2, g->y[i] - textheight(chu_so)/2, chu_so);
+                setbkcolor(BLACK); 
+
+                delay(100); 
+                push(&q, i);
+            }
+        }
+    }
+
+    fclose(fout);
+    printf(ANSI_GREEN "\nDa ghi ket qua vao file 'output.txt'.\n" ANSI_RESET);
+}
+
+// ================= Ham Main =================
+int main() {
+    printf("\n");
+    printf(ANSI_RED     "              DO AN LAP TRINH TINH TOAN\n"         ANSI_RESET);
+    printf(ANSI_GREEN   "               MO PHONG THUAT TOAN BFS\n"          ANSI_RESET);
+    printf(ANSI_YELLOW  "                TREN DO THI VOI DO HOA\n\n"        ANSI_RESET);
+    printf(ANSI_CYAN    "        Nguyen Anh Kiet        Lop: 25T_Nhat2\n"   ANSI_RESET);
+    printf(ANSI_MAGENTA "        Nguyen Duc Anh Quan    Lop: 25T_Nhat2\n"   ANSI_RESET);
+
+    Graph g; 
+    khoi_tao_do_thi(&g);
+    
+    int lua_chon;
+    bool nhap_thanh_cong = false;
+    
+    do {
+        printf("\n");
+        printf("        " ANSI_CYAN "================ MENU ================\n" ANSI_RESET);
+        printf("        " ANSI_CYAN "|" ANSI_RESET " 1. Nhap du lieu tu ban phim        " ANSI_CYAN "|\n" ANSI_RESET);
+    
+        printf("        " ANSI_CYAN "|" ANSI_RESET " 2. Lay du lieu tu file test (1-10) " ANSI_CYAN "|\n" ANSI_RESET);
+        printf("        " ANSI_CYAN "======================================\n" ANSI_RESET);
+        printf("        " ANSI_YELLOW "Moi ban chon (1 hoac 2): " ANSI_RESET);
+        
+        if (scanf("%d", &lua_chon) != 1) {
+            printf(ANSI_RED "        Loi: Vui long nhap so 1 hoac 2!\n" ANSI_RESET);
+            xoa_bo_dem(); 
+            continue;
+        }
+        xoa_bo_dem(); 
+
+        if (lua_chon == 1) {
+            nhap_thanh_cong = nhap_tu_ban_phim(&g);
+            if (nhap_thanh_cong) break; // Chi thoat Menu khi nhap dung
+        } else if (lua_chon == 2) {
+            nhap_thanh_cong = nhap_tu_file(&g);
+            if (nhap_thanh_cong) break; // Chi thoat Menu khi file hop le
+        } else {
+            printf(ANSI_RED "        Lua chon khong hop le, vui long chon lai!\n" ANSI_RESET);
+        }
+    } while (1);
+
+    if (nhap_thanh_cong) {
+        initwindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Mo phong BFS");
+        VeDoThiGoc(&g);
+        printf("\nBat dau chay BFS tren cua so do hoa...\n");
+        BFS(&g);
+        getch(); 
+        closegraph();
+    }
+    
+    return 0;
+}
